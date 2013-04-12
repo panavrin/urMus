@@ -24,6 +24,7 @@
 #import "urSound.h"
 #import "httpServer.h"
 #include <arpa/inet.h>
+#include <stdlib.h>
 
 #define DEGREES_TO_RADIANS(x) (M_PI * x / 180.0)
 
@@ -843,9 +844,10 @@ void decCameraUseBy(int dec)
 - (GPUImageMovie *)loadMovie:(NSString*)filename
 {
     NSString *filePath;
-    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:texturepathstr];
+    BOOL isDir;
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:texturepathstr isDirectory:&isDir];
 
-    if(fileExists)
+    if(fileExists && !isDir)
     {
         filePath = filename;
     }
@@ -854,8 +856,8 @@ void decCameraUseBy(int dec)
         NSString *resourcePath = [[NSBundle mainBundle] resourcePath];
         filePath = [resourcePath stringByAppendingPathComponent:filename];
         
-        fileExists = [[NSFileManager defaultManager] fileExistsAtPath:filePath];
-        if(!fileExists)
+        fileExists = [[NSFileManager defaultManager] fileExistsAtPath:filePath isDirectory:&isDir];
+        if(!fileExists || isDir)
             return nil;
     }
 //    NSURL *movieURL = [[NSBundle mainBundle] URLForResource:filename withExtension:nil];
@@ -3407,12 +3409,55 @@ void freeMovieTexture(urAPI_Region_t* t)
 #endif
 }
 
+char currentmediapath[PATH_MAX];
+
+char* accessiblePathSystemFirst(char* fn)
+{
+//    if(strlen(fn)<1) return NULL;
+    
+    if( access( fn, F_OK ) != -1 ) {
+        return fn;
+        // file exists
+    } else {
+        const char* syspath = getSystemPath();
+        strcpy(currentmediapath,syspath);
+        int len = strlen(currentmediapath);
+        currentmediapath[len]='/'; // System path does not have a trailing / in iOS
+        currentmediapath[len+1]='\0';
+        strcat(currentmediapath,fn);
+        if( access( currentmediapath, F_OK ) != -1 ) {
+            return currentmediapath;
+            // file exists
+        } else {
+            const char* docpath = getDocumentPath();
+            strcpy(currentmediapath,docpath);
+            //            int len = strlen(currentmediapath); // Document path DOES have a trailing / in iOS. Consistency ftw.
+            //            currentmediapath[len]='/';
+            //            currentmediapath[len+1]='\0';
+            
+            strcat(currentmediapath,fn);
+            if( access( currentmediapath, F_OK ) != -1 ) {
+                return currentmediapath;
+                // file exists
+            } else {
+                return NULL;
+                // file doesn't exist
+            }
+        }
+    }
+}
+
 void instantiateTexture(urAPI_Region_t* t)
 {
 //#ifdef UISTRINGS
-	texturepathstr = [[NSString alloc] initWithUTF8String:t->texture->texturepath];
+//	texturepathstr = [[NSString alloc] initWithUTF8String:t->texture->texturepath];
 //	NSString *filePath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:texturepathstr]; // Leak here, fix.
 //	UIImage* textureimage = [UIImage imageNamed:texturepathstr];
+    
+    char* pathstr = accessiblePathSystemFirst(t->texture->texturepath);
+    if(pathstr!=NULL)
+    {
+    texturepathstr = [[NSString alloc] initWithUTF8String:pathstr];
     
     // Try as image file
 	UIImage* textureimage = [UIImage imageWithContentsOfFile:texturepathstr];
@@ -3465,7 +3510,11 @@ void instantiateTexture(urAPI_Region_t* t)
 		t->texture->width = [textureimage size].width;
 		t->texture->height = [textureimage size].height;
 	}
-	[texturepathstr release];	
+	[texturepathstr release];
+    }
+    else
+        instantiateBlankTexture(t);
+    
 }
 
 void instantiateBlankTexture(urAPI_Region_t* t)
@@ -3996,7 +4045,6 @@ void renderTextLabel(urAPI_Region_t* t)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glBindFramebufferOES(GL_FRAMEBUFFER_OES, viewFramebuffer);
     glViewport(0, 0, backingWidth, backingHeight);
-//	glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 #ifdef RENDERTOTEXTURE
     if(bgtextureFrameBuffer == -1)
@@ -4921,9 +4969,55 @@ void renderTextLabel(urAPI_Region_t* t)
         float extScreenWidth = externalWindow.frame.size.width;
         float extScreenHeight = externalWindow.frame.size.height;
         NSArray			*screens;
-        
         screens = [UIScreen screens];
+/*        UIScreen		*aScreen;
+        UIScreenMode	*mode;
+        UIScreenMode *bestmode = NULL;
+        uint32_t  bestwidth=0;
+        uint32_t  bestheight=0;
+        
 
+        
+        uint32_t screenNum = 1;
+        for (aScreen in screens) {
+            NSArray *displayModes;
+            
+            displayModes = [aScreen availableModes];
+            for (mode in displayModes) {
+                    uint32_t width = mode.size.width;
+                    uint32_t height = mode.size.height;
+                    if(abs(height-SCREEN_HEIGHT)<abs(bestheight-SCREEN_HEIGHT))
+                    {
+                        bestmode = mode;
+                    }
+           }
+            
+            extScreen.currentMode
+            
+            screenNum++;
+        }
+        
+        NSUInteger screenCount = [screens count];
+        
+        if (screenCount > 1) {
+            // 2.
+            
+            // Select first external screen
+            self.extScreen = [screens objectAtIndex:1];
+            self.availableModes = [extScreen availableModes];
+            
+            // Update picker with display modes
+            [modePicker reloadAllComponents];
+            
+            // Enable mode set option
+            modeSetButton.enabled = YES;
+            
+            // Set initial display mode to highest resolution
+            [modePicker selectRow:([modePicker numberOfRowsInComponent:0] - 1) inComponent:0 animated:NO];
+            [self buttonAction:modeSetButton];
+        }
+        */
+        
         float deviceScreenRatio = [[screens objectAtIndex:0] bounds].size.width/[[screens objectAtIndex:0] bounds].size.height;
         CGRect finalExtFrame;
         
@@ -5002,15 +5096,38 @@ void renderTextLabel(urAPI_Region_t* t)
     }
     else
     {
-        UIWindow* externalWindow = [self window];
-        
-        float extScreenWidth = externalWindow.frame.size.width;
-        float extScreenHeight = externalWindow.frame.size.height;
         NSArray			*screens;
         
         screens = [UIScreen screens];
+        UIScreen* extScreen = [screens objectAtIndex:1];
+//        extScreen.currentMode = [availableModes objectAtIndex:selectedRow];
+//        UIWindow* externalWindow = [self window];
+        UIScreenMode	*mode;
+        NSArray *displayModes;
+        UIScreenMode *bestmode = NULL;
+        uint32_t  bestwidth=0;
+        uint32_t  bestheight=0;
+        displayModes = [extScreen availableModes];
+        for (mode in displayModes) {
+            uint32_t width = mode.size.width;
+            uint32_t height = mode.size.height;
+            if(abs((int)(height-SCREEN_HEIGHT))<abs((int)(bestheight-SCREEN_HEIGHT)))
+            {
+                bestmode = mode;
+                bestwidth = width;
+                bestheight = height;
+            }
+        }
         
-        float deviceScreenRatio = [[screens objectAtIndex:0] bounds].size.width/[[screens objectAtIndex:0] bounds].size.height;
+        extScreen.currentMode = bestmode;
+        
+        UIWindow* externalWindow;
+        externalWindow = [[UIWindow alloc] initWithFrame:[extScreen bounds]];
+       
+        float extScreenWidth = externalWindow.frame.size.width;
+        float extScreenHeight = externalWindow.frame.size.height;
+        
+        float deviceScreenRatio = [extScreen bounds].size.width/[extScreen bounds].size.height;
         CGRect finalExtFrame;
         
         if (extScreenHeight < extScreenWidth) {
@@ -5041,8 +5158,10 @@ void renderTextLabel(urAPI_Region_t* t)
         
 		glGenRenderbuffers(1, &depthRenderbuffer);
 		glBindRenderbuffer(GL_RENDERBUFFER, depthRenderbuffer);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, backingWidth, backingHeight);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderbuffer);				
+
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, backingWidth, backingHeight);
+
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderbuffer);
         
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             NSLog(@"Failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -5101,6 +5220,7 @@ void renderTextLabel(urAPI_Region_t* t)
         esOrtho(&projection, 0.0f, SCREEN_WIDTH*scalex, 0.0f, SCREEN_HEIGHT*scaley, -1.0f, 1.0f);
         esMatrixLoadIdentity(&modelView);
         glViewport(0, 0, backingWidth, backingHeight);
+//        glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         /*
         esOrtho(&projection, 0.0f, SCREEN_WIDTH, 0.0f, SCREEN_HEIGHT, -1.0f, 1.0f);

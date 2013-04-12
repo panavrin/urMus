@@ -2144,9 +2144,17 @@ int region_Lower(lua_State* lua)
 	if(region->prev != nil)
 	{
 		urAPI_Region_t* temp = region->prev;
+        if(firstRegion[currentPage] == temp)
+            firstRegion[currentPage] = region;
+        if(lastRegion[currentPage] == region)
+            lastRegion[currentPage] = temp;
 		region->prev = temp->prev;
 		temp->next = region->next;
+        if(temp->prev)
+            temp->prev->next = region;
 		temp->prev = region;
+        if(region->next)
+            region->next->prev = temp;
 		region->next = temp;
 	}
 	return 0;
@@ -2158,9 +2166,17 @@ int region_Raise(lua_State* lua)
 	if(region->next != nil)
 	{
 		urAPI_Region_t* temp = region->next;
+        if(firstRegion[currentPage] == region)
+            firstRegion[currentPage] = temp;
+        if(lastRegion[currentPage] == temp)
+            lastRegion[currentPage] = region;
 		region->next = temp->next;
 		temp->prev = region->prev;
+        if(temp->next)
+            temp->next->prev = region;
 		temp->next = region;
+        if(region->prev)
+            region->prev->next = temp;
 		region->prev = temp;
 	}
 	return 0;
@@ -5437,6 +5453,30 @@ int l_GetUrOuts(lua_State *lua)
 // Path-related global API
 //------------------------------------------------------------------------------
 
+const char* getSystemPath()
+{
+	NSString *filename2 = @"";
+	NSString *filePath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:filename2];
+    return [filePath UTF8String];
+}
+
+const char* getDocumentPath()
+{
+	NSString *filename2 = @"";
+	NSArray *paths;
+	paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+	if ([paths count] > 0) {
+		NSString *filePath = [paths objectAtIndex:0];
+		NSString *resultPath = [NSString stringWithFormat:@"%@/%@", filePath, filename2];
+		return [resultPath UTF8String];
+	}
+	else
+	{
+        assert(0); // This should never happen!
+        return NULL;
+	}
+}
+
 int l_SystemPath(lua_State *lua)
 {
 	const char* filename = luaL_checkstring(lua,1);
@@ -5533,6 +5573,20 @@ int l_LinkExternalDisplay(lua_State *lua)
     
     if(link) 
         currentExternalPage = currentPage;
+    return 0;
+}
+
+int l_SetExternalOrientation(lua_State *lua)
+{
+    int num = luaL_checknumber(lua,1);
+    if(num == 0)
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIDeviceOrientationPortrait animated:NO];
+    else if(num == 1)
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIInterfaceOrientationPortraitUpsideDown animated:NO];
+    else if(num == 2)
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIDeviceOrientationLandscapeLeft animated:NO];
+    else
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIDeviceOrientationLandscapeRight animated:NO];
     return 0;
 }
     	
@@ -6053,6 +6107,8 @@ void l_setupAPI(lua_State *lua)
 	lua_setglobal(lua, "DisplayExternalPage");
 	lua_pushcfunction(lua, l_LinkExternalDisplay);
 	lua_setglobal(lua, "LinkExternalDisplay");
+    lua_pushcfunction(lua, l_SetExternalOrientation);
+    lua_setglobal(lua, "SetExternalOrientation");
 	
 #ifdef SOAR_SUPPORT_OLD
 	lua_pushcfunction(lua, l_SoarCreateID);
