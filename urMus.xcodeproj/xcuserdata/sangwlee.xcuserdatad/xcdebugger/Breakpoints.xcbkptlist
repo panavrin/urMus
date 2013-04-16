@@ -230,7 +230,7 @@
          endingColumnNumber = "9223372036854775807"
          startingLineNumber = "5099"
          endingLineNumber = "5099"
-         landmarkName = "l_StopNetAdvertise(lua_State* lua)"
+         landmarkName = "l_NetAdvertise(lua_State* lua)"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
@@ -243,7 +243,7 @@
          endingColumnNumber = "9223372036854775807"
          startingLineNumber = "5100"
          endingLineNumber = "5100"
-         landmarkName = "l_StopNetAdvertise(lua_State* lua)"
+         landmarkName = "l_NetAdvertise(lua_State* lua)"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
@@ -256,7 +256,7 @@
          endingColumnNumber = "9223372036854775807"
          startingLineNumber = "5107"
          endingLineNumber = "5107"
-         landmarkName = "l_StopNetFind(lua_State* lua)"
+         landmarkName = "l_NetFind(lua_State* lua)"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
