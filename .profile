@@ -11,3 +11,8 @@ source .bashrc
 source .bashrc
 source .bashrc
 source .bashrc
+source .bashrc
+source .bashrc
+source .bashrc
+source .bashrc
+source .bashrc
